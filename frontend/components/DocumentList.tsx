@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { DocumentItem, fetchDocumentText } from '../api';
+import { DocumentItem, fetchDocumentText } from '.././src/api';
 import { FileText, Trash2, Loader2, Calendar, Eye } from 'lucide-react';
 import { DocumentViewModal } from './DocumentViewModal';
 

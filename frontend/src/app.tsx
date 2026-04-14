@@ -1,10 +1,10 @@
 import { ChangeEvent, useEffect, useMemo, useState, useCallback } from "react";
 import { askQuestion, Citation, deleteDocument, DocumentItem, fetchDocuments, ingestDocument, PaginatedDocuments } from "./api";
-import { useDebounce } from "./hooks/useDebounce";
-import { DocumentList } from "./components/DocumentList";
-import { CitationList } from "./components/CitationList";
-import { DocumentForm } from "./components/DocumentForm";
-import { QuestionForm } from "./components/QuestionForm";
+import { useDebounce } from "../hooks/useDebounce"
+import { DocumentList } from "../components/DocumentList";
+import { CitationList } from "../components/CitationList";
+import { DocumentForm } from "../components/DocumentForm";
+import { QuestionForm } from "../components/QuestionForm";
 import { Brain, FileText, AlertCircle, MessageSquare, ChevronLeft, ChevronRight } from "lucide-react";
 
 export function App() {
@@ -15,7 +15,7 @@ export function App() {
   const [question, setQuestion] = useState("");
   const debouncedQuestion = useDebounce(question, 500);
   const [answer, setAnswer] = useState("");
-  const [citations, setCit  ations] = useState<Citation[]>([]);
+  const [citations, setcitations] = useState<Citation[]>([]);
   const [topK, setTopK] = useState(4);
   const [loadingIngest, setLoadingIngest] = useState(false);
   const [loadingAsk, setLoadingAsk] = useState(false);
@@ -68,7 +68,7 @@ export function App() {
     setAnswer("");
     setCitations([]);
     try {
-      const result = await askQuestion({ question: debouncedQuestion.trim(), topK });
+      const result = await askQuestion({ question: question.trim(), topK });
       setAnswer(result.answer);
       setCitations(result.citations);
     } catch (e) {
@@ -76,7 +76,7 @@ export function App() {
     } finally {
       setLoadingAsk(false);
     }
-  }, [debouncedQuestion, topK]);
+  }, [question, topK]);
 
   const handleDeleteDocument = useCallback(async (documentId: number) => {
     setError(null);
@@ -141,9 +141,9 @@ export function App() {
           <FileText size={20} />
           Documents
           {pagination && (
-            <span style={{ 
-              fontSize: '0.9rem', 
-              fontWeight: 'normal', 
+            <span style={{
+              fontSize: '0.9rem',
+              fontWeight: 'normal',
               color: '#6b7280',
               marginLeft: 'auto'
             }}>
@@ -156,12 +156,12 @@ export function App() {
           onDeleteDocument={handleDeleteDocument}
           deletingDocumentId={deletingDocumentId}
         />
-        
+
         {/* Pagination Controls */}
         {pagination && pagination.totalPages > 1 && (
-          <div style={{ 
-            display: 'flex', 
-            alignItems: 'center', 
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
             justifyContent: 'center',
             gap: '16px',
             marginTop: '20px',
@@ -188,9 +188,9 @@ export function App() {
               <ChevronLeft size={14} />
               Prev
             </button>
-            
-            <span style={{ 
-              fontSize: '14px', 
+
+            <span style={{
+              fontSize: '14px',
               color: '#374151',
               fontWeight: 500,
               padding: '6px 12px',
@@ -200,7 +200,7 @@ export function App() {
             }}>
               Page {pagination.page} of {pagination.totalPages}
             </span>
-            
+
             <button
               onClick={() => loadDocs(pagination.page + 1)}
               disabled={!pagination.hasNext || loadingDocs}
@@ -248,7 +248,7 @@ export function App() {
           <MessageSquare size={20} />
           Answer
         </h2>
-        <div style={{ 
+        <div style={{
           background: answer ? '#f0f9ff' : '#f9fafb',
           border: `1px solid ${answer ? '#0ea5e9' : '#e5e7eb'}`,
           borderRadius: '12px',
