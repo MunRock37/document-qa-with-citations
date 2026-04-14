@@ -1,5 +1,6 @@
 import { ChangeEvent, useEffect, useMemo, useState, useCallback } from "react";
 import { askQuestion, Citation, deleteDocument, DocumentItem, fetchDocuments, ingestDocument, PaginatedDocuments } from "./api";
+import { useDebounce } from "./hooks/useDebounce";
 import { DocumentList } from "./components/DocumentList";
 import { CitationList } from "./components/CitationList";
 import { DocumentForm } from "./components/DocumentForm";
@@ -12,6 +13,7 @@ export function App() {
   const [paginatedDocuments, setPaginatedDocuments] = useState<PaginatedDocuments | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [question, setQuestion] = useState("");
+  const debouncedQuestion = useDebounce(question, 500);
   const [answer, setAnswer] = useState("");
   const [citations, setCit  ations] = useState<Citation[]>([]);
   const [topK, setTopK] = useState(4);
@@ -66,7 +68,7 @@ export function App() {
     setAnswer("");
     setCitations([]);
     try {
-      const result = await askQuestion({ question: question.trim(), topK });
+      const result = await askQuestion({ question: debouncedQuestion.trim(), topK });
       setAnswer(result.answer);
       setCitations(result.citations);
     } catch (e) {
@@ -74,7 +76,7 @@ export function App() {
     } finally {
       setLoadingAsk(false);
     }
-  }, [question, topK]);
+  }, [debouncedQuestion, topK]);
 
   const handleDeleteDocument = useCallback(async (documentId: number) => {
     setError(null);
