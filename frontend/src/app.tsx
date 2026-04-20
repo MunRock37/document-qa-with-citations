@@ -6,6 +6,12 @@ import { CitationList } from "../components/CitationList";
 import { DocumentForm } from "../components/DocumentForm";
 import { QuestionForm } from "../components/QuestionForm";
 import { Brain, FileText, AlertCircle, MessageSquare, ChevronLeft, ChevronRight } from "lucide-react";
+import { GlobalWorkerOptions, getDocument } from "pdfjs-dist";
+ 
+GlobalWorkerOptions.workerSrc = new URL(
+  "pdfjs-dist/build/pdf.worker.min.mjs",
+  import.meta.url
+).toString();
 
 export function App() {
   const [docName, setDocName] = useState("");
@@ -66,11 +72,11 @@ export function App() {
     setError(null);
     setLoadingAsk(true);
     setAnswer("");
-    setCitations([]);
+    setcitations([]);
     try {
       const result = await askQuestion({ question: question.trim(), topK });
       setAnswer(result.answer);
-      setCitations(result.citations);
+      setcitations(result.citations);
     } catch (e) {
       setError(String((e as Error).message ?? e));
     } finally {
@@ -91,27 +97,50 @@ export function App() {
     }
   }, [currentPage]);
 
-  const handleFileUpload = useCallback((event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    if (!file.name.endsWith(".txt")) {
-      setError("Only .txt files are supported in this MVP.");
+   const handleFileUpload = useCallback(async (event: ChangeEvent<HTMLInputElement>) => {
+  const file = event.target.files?.[0];
+  if (!file) return;
+
+  setError(null);
+  setDocName(file.name);
+
+  const fileNameLower = file.name.toLowerCase();
+  const isTxt = fileNameLower.endsWith(".txt") || file.type === "text/plain";
+  const isPdf = fileNameLower.endsWith(".pdf") || file.type === "application/pdf";
+
+  if (!isTxt && !isPdf) {
+    setError("Only .txt and .pdf files are supported in this MVP.");
+    return;
+  }
+
+  try {
+    if (isTxt) {
+      const text = await file.text();
+      setDocText(text);
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      setDocText(String(reader.result ?? ""));
-      setDocName(file.name);
-    };
-    reader.onerror = () => setError("Failed to read uploaded file.");
-    reader.readAsText(file);
-  }, []);
+    const data = await file.arrayBuffer();
+    const pdf = await getDocument({ data }).promise;
+    const pageTexts: string[] = [];
 
-  const emptyState = useMemo(() => {
-    if (hasDocs) return null;
-    return null; // Handled by DocumentList component
-  }, [hasDocs]);
+    for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+      const page = await pdf.getPage(pageNum);
+      const content = await page.getTextContent();
+
+      const strings = content.items
+        .map((item: any) => ("str" in item ? String(item.str) : ""))
+        .filter(Boolean);
+
+      pageTexts.push(strings.join(" "));
+    }
+
+    setDocText(pageTexts.join("\n\n"));
+  } catch (error) {
+    console.error(error);
+    setError("Failed to read uploaded file.");
+  }
+}, []);
 
   return (
     <main className="container">
@@ -125,19 +154,32 @@ export function App() {
         </p>
       </div>
 
-      <DocumentForm
-        docName={docName}
-        docText={docText}
-        loadingIngest={loadingIngest}
-        canIngest={canIngest}
-        onDocNameChange={setDocName}
-        onDocTextChange={setDocText}
-        onFileUpload={handleFileUpload}
-        onIngest={handleIngest}
-      />
+      <div className="layout-grid layout-grid--top">
+        <DocumentForm
+          docName={docName}
+          docText={docText}
+          loadingIngest={loadingIngest}
+          canIngest={canIngest}
+          onDocNameChange={setDocName}
+          onDocTextChange={setDocText}
+          onFileUpload={handleFileUpload}
+          onIngest={handleIngest}
+        />
+
+        <QuestionForm
+          question={question}
+          topK={topK}
+          hasDocs={hasDocs}
+          loadingAsk={loadingAsk}
+          canAsk={canAsk}
+          onQuestionChange={setQuestion}
+          onTopKChange={setTopK}
+          onAsk={handleAsk}
+        />
+      </div>
 
       <section className="card">
-        <h2>
+        <h2 className='card-header-title'>
           <FileText size={20} />
           Documents
           {pagination && (
@@ -151,90 +193,81 @@ export function App() {
             </span>
           )}
         </h2>
-        <DocumentList
-          documents={documents}
-          onDeleteDocument={handleDeleteDocument}
-          deletingDocumentId={deletingDocumentId}
-        />
+        <div className='card-body'>
+          <DocumentList
+            documents={documents}
+            onDeleteDocument={handleDeleteDocument}
+            deletingDocumentId={deletingDocumentId}
+          />
 
-        {/* Pagination Controls */}
-        {pagination && pagination.totalPages > 1 && (
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '16px',
-            marginTop: '20px',
-            paddingTop: '20px',
-            borderTop: '1px solid #e5e7eb'
-          }}>
-            <button
-              onClick={() => loadDocs(pagination.page - 1)}
-              disabled={!pagination.hasPrev || loadingDocs}
-              style={{
-                padding: '6px 10px',
-                border: '1px solid #d1d5db',
-                borderRadius: '6px',
-                background: 'white',
-                cursor: pagination.hasPrev && !loadingDocs ? 'pointer' : 'not-allowed',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '4px',
-                fontSize: '13px',
-                color: pagination.hasPrev ? '#374151' : '#9ca3af',
-                minWidth: '60px'
-              }}
-            >
-              <ChevronLeft size={14} />
-              Prev
-            </button>
-
-            <span style={{
-              fontSize: '14px',
-              color: '#374151',
-              fontWeight: 500,
-              padding: '6px 12px',
-              background: '#f9fafb',
-              borderRadius: '6px',
-              border: '1px solid #e5e7eb'
+          {/* Pagination Controls */}
+          {pagination && pagination.totalPages > 1 && (
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '16px',
+              marginTop: '20px',
+              paddingTop: '20px',
+              borderTop: '1px solid #e5e7eb'
             }}>
-              Page {pagination.page} of {pagination.totalPages}
-            </span>
+              <button
+                onClick={() => loadDocs(pagination.page - 1)}
+                disabled={!pagination.hasPrev || loadingDocs}
+                style={{
+                  padding: '6px 10px',
+                  border: '1px solid #d1d5db',
+                  borderRadius: '6px',
+                  background: 'white',
+                  cursor: pagination.hasPrev && !loadingDocs ? 'pointer' : 'not-allowed',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  fontSize: '13px',
+                  color: pagination.hasPrev ? '#374151' : '#9ca3af',
+                  minWidth: '60px'
+                }}
+              >
+                <ChevronLeft size={14} />
+                Prev
+              </button>
 
-            <button
-              onClick={() => loadDocs(pagination.page + 1)}
-              disabled={!pagination.hasNext || loadingDocs}
-              style={{
-                padding: '6px 10px',
-                border: '1px solid #d1d5db',
+              <span style={{
+                fontSize: '14px',
+                color: '#374151',
+                fontWeight: 500,
+                padding: '6px 12px',
+                background: '#f9fafb',
                 borderRadius: '6px',
-                background: 'white',
-                cursor: pagination.hasNext && !loadingDocs ? 'pointer' : 'not-allowed',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '4px',
-                fontSize: '13px',
-                color: pagination.hasNext ? '#374151' : '#9ca3af',
-                minWidth: '60px'
-              }}
-            >
-              Next
-              <ChevronRight size={14} />
-            </button>
-          </div>
-        )}
-      </section>
+                border: '1px solid #e5e7eb'
+              }}>
+                Page {pagination.page} of {pagination.totalPages}
+              </span>
 
-      <QuestionForm
-        question={question}
-        topK={topK}
-        hasDocs={hasDocs}
-        loadingAsk={loadingAsk}
-        canAsk={canAsk}
-        onQuestionChange={setQuestion}
-        onTopKChange={setTopK}
-        onAsk={handleAsk}
-      />
+              <button
+                onClick={() => loadDocs(pagination.page + 1)}
+                disabled={!pagination.hasNext || loadingDocs}
+                style={{
+                  padding: '6px 10px',
+                  border: '1px solid #d1d5db',
+                  borderRadius: '6px',
+                  background: 'white',
+                  cursor: pagination.hasNext && !loadingDocs ? 'pointer' : 'not-allowed',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  fontSize: '13px',
+                  color: pagination.hasNext ? '#374151' : '#9ca3af',
+                  minWidth: '60px'
+                }}
+              >
+                Next
+                <ChevronRight size={14} />
+              </button>
+            </div>
+          )}
+        </div>
+      </section>
 
       {error && (
         <div className="error" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -243,33 +276,39 @@ export function App() {
         </div>
       )}
 
-      <section className="card">
-        <h2>
-          <MessageSquare size={20} />
-          Answer
-        </h2>
-        <div style={{
-          background: answer ? '#f0f9ff' : '#f9fafb',
-          border: `1px solid ${answer ? '#0ea5e9' : '#e5e7eb'}`,
-          borderRadius: '12px',
-          padding: '16px',
-          minHeight: '80px',
-          display: 'flex',
-          alignItems: 'center',
-          color: answer ? '#0c4a6e' : '#6b7280',
-          fontStyle: answer ? 'normal' : 'italic'
-        }}>
-          {answer || "No answer yet. Ask a question to get started."}
-        </div>
-      </section>
+      <div className="layout-grid layout-grid--bottom">
+        <section className="card">
+          <h2 className='card-header-title'>
+            <MessageSquare size={20} />
+            Answer
+          </h2>
+          <div className='card-body'>
+            <div style={{
+              background: answer ? '#f0f9ff' : '#f9fafb',
+              border: `1px solid ${answer ? '#0ea5e9' : '#e5e7eb'}`,
+              borderRadius: '12px',
+              padding: '16px',
+              minHeight: '80px',
+              display: 'flex',
+              alignItems: 'center',
+              color: answer ? '#0c4a6e' : '#6b7280',
+              fontStyle: answer ? 'normal' : 'italic'
+            }}>
+              {answer || "No answer yet. Ask a question to get started."}
+            </div>
+          </div>
+        </section>
 
-      <section className="card">
-        <h2>
-          <FileText size={20} />
-          Citations
-        </h2>
-        <CitationList citations={citations} />
-      </section>
+        <section className="card">
+          <h2 className='card-header-title'>
+            <FileText size={20} />
+            Citations
+          </h2>
+          <div className='card-body'>
+            <CitationList citations={citations} />
+          </div>
+        </section>
+      </div>
     </main>
   );
 }

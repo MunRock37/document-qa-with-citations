@@ -102,8 +102,7 @@ export const DocumentList = React.memo(function DocumentList({
             </div>
           </li>
         ))}
-      </ul>
-
+      </ul> 
       <DocumentViewModal
         isOpen={viewingDocument !== null}
         onClose={handleCloseModal}
