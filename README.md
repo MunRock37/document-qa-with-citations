@@ -7,6 +7,14 @@ This project implements the practical full-stack AI evaluation task as a local-f
 - Storage: SQLite (`documents`, `chunks`, embeddings as JSON)
 - AI: OpenAI embeddings + chat completion for answer synthesis
 
+
+## UI Preview
+
+Below is a snapshot of the application interface showcasing document upload, chat-based Q&A, and citation handling:
+
+![App Screenshot](./assets/screenshot.png)
+
+
 ## What I Built
 
 - Ingestion flow:
